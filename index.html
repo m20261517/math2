@@ -1,1 +1,440 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>원기둥·원뿔·구 분류기</title>
+  <style>
+    /* 전체 화면 기본 스타일 */
+    :root {
+      color-scheme: light;
+      --bg: #f2fbff;
+      --card: #ffffff;
+      --text: #10344a;
+      --accent: #0d8fd6;
+      --accent-strong: #0668a1;
+      --ok: #0d8f4c;
+      --warn: #b36d00;
+      --error: #b71c1c;
+    }
 
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background: linear-gradient(180deg, #eaf7ff 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+
+    main {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(16, 52, 74, 0.08);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      line-height: 1.35;
+    }
+
+    p { margin: 8px 0; line-height: 1.6; }
+
+    .privacy-note {
+      font-weight: 700;
+      color: var(--ok);
+    }
+
+    .step-list {
+      margin: 8px 0 0;
+      padding-left: 1.2rem;
+      font-size: 1rem;
+    }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    button,
+    input[type="file"]::file-selector-button {
+      border: none;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 14px 18px;
+      min-height: 52px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    button:hover,
+    input[type="file"]::file-selector-button:hover {
+      background: var(--accent-strong);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      font-size: 1rem;
+      padding: 8px;
+      border-radius: 12px;
+      border: 2px dashed #b8d9ec;
+      background: #f8fdff;
+    }
+
+    video,
+    canvas,
+    img {
+      width: 100%;
+      max-height: 360px;
+      border-radius: 12px;
+      background: #d9eefb;
+      object-fit: contain;
+      border: 1px solid #b8d9ec;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .status {
+      font-size: 1.03rem;
+      font-weight: 700;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.warn { color: var(--warn); }
+    .status.error { color: var(--error); }
+
+    .result {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 600px) {
+      main { padding: 12px; }
+      .card { padding: 14px; }
+      button, input[type="file"]::file-selector-button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- 앱 소개와 사용 안내 영역 -->
+    <section class="card" aria-labelledby="app-title">
+      <h1 id="app-title">원기둥 · 원뿔 · 구 분류기</h1>
+      <p>사진을 찍거나 올리면 <strong>원뿔</strong>, <strong>원기둥</strong>, <strong>구</strong> 중 무엇인지 알려줘요.</p>
+      <p class="privacy-note">사진은 외부로 보내지 않고 이 기기에서만 처리돼요.</p>
+      <ol class="step-list">
+        <li>모델 로딩이 끝날 때까지 잠깐 기다려요.</li>
+        <li>카메라를 시작하고 사진을 찍거나, 파일 업로드로 사진을 선택해요.</li>
+        <li>분석 결과를 확인해요.</li>
+      </ol>
+      <p id="file-protocol-note" class="status warn hidden">
+        현재 file:// 방식으로 열려 있어요. 브라우저 보안 정책 때문에 모델/카메라가 동작하지 않을 수 있어요. GitHub Pages 또는 로컬 HTTP 서버에서 열어 주세요.
+      </p>
+    </section>
+
+    <!-- 모델/카메라/분석 상태를 사용자에게 읽어 주는 영역 -->
+    <section class="card" aria-live="polite" aria-atomic="true">
+      <p id="model-status" class="status">모델을 불러오는 중이에요...</p>
+      <p id="camera-status" class="status">카메라를 아직 시작하지 않았어요.</p>
+      <p id="analysis-status" class="status">분석할 이미지를 기다리고 있어요.</p>
+      <p id="error-status" class="status error" role="alert"></p>
+      <p id="result" class="result">결과: 준비 중</p>
+    </section>
+
+    <section class="card grid">
+      <!-- 카메라 입력 영역 -->
+      <div>
+        <h2>1) 카메라로 찍기</h2>
+        <video id="camera-view" playsinline autoplay muted aria-label="실시간 카메라 화면"></video>
+        <canvas id="capture-canvas" class="hidden" aria-hidden="true"></canvas>
+        <div class="button-row">
+          <button id="start-camera-btn" type="button">카메라 시작</button>
+          <button id="capture-btn" type="button" disabled>사진 찍고 분석</button>
+          <button id="stop-camera-btn" type="button" disabled>카메라 중지</button>
+        </div>
+      </div>
+
+      <!-- 파일 업로드 입력 영역 -->
+      <div>
+        <h2>2) 사진 올리기</h2>
+        <label for="image-input">기기에 저장된 사진 선택</label>
+        <input id="image-input" type="file" accept="image/*" capture="environment" aria-label="분석할 이미지 파일 선택" disabled />
+        <img id="preview-image" class="hidden" alt="선택한 이미지 미리보기" />
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+  <script>
+    // 로컬 모델 파일 경로와 기준 임계값을 설정합니다.
+    const MODEL_URL = './model.json';
+    const METADATA_URL = './metadata.json';
+    const CONFIDENCE_THRESHOLD = 0.7;
+
+    // 앱 상태를 저장할 변수입니다.
+    let model = null;
+    let metadataLabels = [];
+    let stream = null;
+
+    // 자주 쓰는 DOM 요소를 미리 가져옵니다.
+    const modelStatus = document.getElementById('model-status');
+    const cameraStatus = document.getElementById('camera-status');
+    const analysisStatus = document.getElementById('analysis-status');
+    const errorStatus = document.getElementById('error-status');
+    const resultEl = document.getElementById('result');
+    const fileProtocolNote = document.getElementById('file-protocol-note');
+
+    const cameraView = document.getElementById('camera-view');
+    const captureCanvas = document.getElementById('capture-canvas');
+    const previewImage = document.getElementById('preview-image');
+    const imageInput = document.getElementById('image-input');
+
+    const startCameraBtn = document.getElementById('start-camera-btn');
+    const captureBtn = document.getElementById('capture-btn');
+    const stopCameraBtn = document.getElementById('stop-camera-btn');
+
+    // 상태 문구를 안전하게 업데이트하는 헬퍼 함수입니다.
+    function setStatus(element, message, className = '') {
+      element.textContent = message;
+      element.className = `status ${className}`.trim();
+    }
+
+    // 오류 메시지를 화면에 표시합니다.
+    function showError(message) {
+      errorStatus.textContent = message;
+    }
+
+    // 오류 메시지를 비웁니다.
+    function clearError() {
+      errorStatus.textContent = '';
+    }
+
+    // file://로 열렸는지 확인해 안내를 표시합니다.
+    if (window.location.protocol === 'file:') {
+      fileProtocolNote.classList.remove('hidden');
+    }
+
+    // metadata.json에서 라벨 배열을 읽어 옵니다.
+    async function loadMetadataLabels() {
+      const response = await fetch(METADATA_URL);
+      if (!response.ok) {
+        throw new Error('metadata.json 파일을 읽을 수 없어요.');
+      }
+      const metadata = await response.json();
+      if (!Array.isArray(metadata.labels) || metadata.labels.length === 0) {
+        throw new Error('metadata.json에 labels 정보가 없어요.');
+      }
+      metadataLabels = metadata.labels;
+    }
+
+    // Teachable Machine 모델을 로컬 파일에서 로드합니다.
+    async function loadModel() {
+      try {
+        setStatus(modelStatus, '모델을 불러오는 중이에요...', 'warn');
+        await loadMetadataLabels();
+        model = await tmImage.load(MODEL_URL, METADATA_URL);
+
+        if (typeof model.getTotalClasses === 'function') {
+          const classCount = model.getTotalClasses();
+          if (metadataLabels.length !== classCount) {
+            setStatus(modelStatus, `모델 로딩 완료! (주의: 라벨 ${metadataLabels.length}개, 클래스 ${classCount}개)`, 'warn');
+          } else {
+            setStatus(modelStatus, '모델 로딩 완료! 이제 분석할 수 있어요.', 'ok');
+          }
+        } else {
+          setStatus(modelStatus, '모델 로딩 완료! 이제 분석할 수 있어요.', 'ok');
+        }
+        imageInput.disabled = false;
+        captureBtn.disabled = !stream;
+      } catch (error) {
+        model = null;
+        setStatus(modelStatus, '모델 로딩에 실패했어요.', 'error');
+        showError(`모델 파일을 불러오지 못했어요. model.json / metadata.json / weights.bin 파일이 같은 폴더에 있는지 확인해 주세요. (${error.message})`);
+      }
+    }
+
+    // 카메라 스트림을 정리하는 함수입니다.
+    function stopCameraStream() {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = null;
+      }
+      cameraView.srcObject = null;
+      captureBtn.disabled = true;
+      stopCameraBtn.disabled = true;
+      setStatus(cameraStatus, '카메라를 중지했어요.');
+    }
+
+    // 후면 카메라를 요청해 실시간 화면을 시작합니다.
+    async function startCamera() {
+      clearError();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showError('이 브라우저에서는 카메라 기능을 지원하지 않아요.');
+        return;
+      }
+
+      try {
+        setStatus(cameraStatus, '카메라 권한을 요청하는 중이에요...', 'warn');
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+        cameraView.srcObject = stream;
+        captureBtn.disabled = !model;
+        stopCameraBtn.disabled = false;
+        setStatus(cameraStatus, '카메라가 준비됐어요. 사진을 찍어 보세요!', 'ok');
+      } catch (error) {
+        if (error.name === 'NotAllowedError') {
+          setStatus(cameraStatus, '카메라 권한이 거부되었어요.', 'error');
+          showError('카메라 권한을 허용해야 사진을 찍을 수 있어요. 브라우저 설정에서 카메라 권한을 허용해 주세요.');
+        } else {
+          setStatus(cameraStatus, '카메라를 시작하지 못했어요.', 'error');
+          showError(`카메라 시작 실패: ${error.message}`);
+        }
+      }
+    }
+
+    // 예측 결과에서 최댓값을 찾아 임계값 규칙에 맞게 문구를 만듭니다.
+    function formatResult(predictions) {
+      if (!Array.isArray(predictions) || predictions.length === 0) {
+        return '결과를 읽을 수 없어요.';
+      }
+
+      let best = predictions[0];
+      predictions.forEach((item) => {
+        if (item.probability > best.probability) {
+          best = item;
+        }
+      });
+
+      const index = predictions.indexOf(best);
+      const label = metadataLabels[index] || best.className || '알 수 없음';
+      const percent = (best.probability * 100).toFixed(1);
+
+      if (best.probability < CONFIDENCE_THRESHOLD) {
+        return '잘 모르겠어요';
+      }
+      return `${label} (${percent}%)`;
+    }
+
+    // 이미지 요소(video/img)를 입력받아 모델 추론을 수행합니다.
+    async function analyzeSource(sourceEl) {
+      clearError();
+      if (!model) {
+        showError('모델이 아직 준비되지 않았어요. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+
+      try {
+        setStatus(analysisStatus, '분석 중이에요... 잠깐만 기다려 주세요!', 'warn');
+        const predictions = await model.predict(sourceEl, false);
+        const formatted = formatResult(predictions);
+        resultEl.textContent = `결과: ${formatted}`;
+        setStatus(analysisStatus, '분석이 완료됐어요.', 'ok');
+      } catch (error) {
+        setStatus(analysisStatus, '분석에 실패했어요.', 'error');
+        showError(`이미지 분석 중 오류가 발생했어요: ${error.message}`);
+      }
+    }
+
+    // 카메라 화면을 캔버스로 캡처해 미리보기와 분석에 사용합니다.
+    async function captureAndAnalyze() {
+      clearError();
+      if (!stream) {
+        showError('카메라를 먼저 시작해 주세요.');
+        return;
+      }
+
+      if (!cameraView.videoWidth || !cameraView.videoHeight) {
+        showError('카메라 화면이 아직 준비되지 않았어요. 잠시 후 다시 눌러 주세요.');
+        return;
+      }
+
+      captureCanvas.width = cameraView.videoWidth;
+      captureCanvas.height = cameraView.videoHeight;
+      const ctx = captureCanvas.getContext('2d');
+      ctx.drawImage(cameraView, 0, 0, captureCanvas.width, captureCanvas.height);
+
+      previewImage.src = captureCanvas.toDataURL('image/jpeg');
+      previewImage.classList.remove('hidden');
+      await analyzeSource(captureCanvas);
+    }
+
+    // 파일 업로드 이미지를 검증하고 분석합니다.
+    async function handleFileChange(event) {
+      clearError();
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+        showError('이미지 파일만 업로드할 수 있어요. (jpg, png 등)');
+        event.target.value = '';
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      previewImage.src = objectUrl;
+      previewImage.classList.remove('hidden');
+
+      previewImage.onload = async () => {
+        try {
+          await analyzeSource(previewImage);
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+
+      previewImage.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        showError('이미지를 읽는 중 문제가 발생했어요. 다른 파일을 시도해 주세요.');
+      };
+    }
+
+    // 버튼/입력 이벤트를 연결합니다.
+    startCameraBtn.addEventListener('click', startCamera);
+    stopCameraBtn.addEventListener('click', stopCameraStream);
+    captureBtn.addEventListener('click', captureAndAnalyze);
+    imageInput.addEventListener('change', handleFileChange);
+
+    // 페이지를 떠날 때 카메라 자원을 정리합니다.
+    window.addEventListener('beforeunload', stopCameraStream);
+    window.addEventListener('pagehide', stopCameraStream);
+
+    // 앱 시작 시 모델을 먼저 불러옵니다.
+    loadModel().finally(() => {
+      captureBtn.disabled = !model || !stream;
+    });
+  </script>
+</body>
+</html>
