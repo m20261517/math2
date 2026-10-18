@@ -16,6 +16,9 @@
 
 👉 [원기둥·원뿔·구 구별 앱 실행하기](https://m20261517.github.io/math2/)
 
+> 이 앱은 GitHub Pages로 배포되며, 저장소 루트의 `index.html`이 `https://m20261517.github.io/math2/` 주소로 게시됩니다.  
+> 저장소 소유자는 필요 시 **Settings → Pages**에서 배포 소스를 **GitHub Actions**로 설정해 `.github/workflows/pages.yml` 워크플로가 배포를 수행하도록 맞춰 주세요.
+
 ## 주요 기능
 
 - 카메라를 이용한 실시간 도형 분류
