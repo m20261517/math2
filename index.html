@@ -1,404 +1,220 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>원기둥·원뿔·구 구별하기</title>
-
-  <!-- 티처블머신 이미지 모델을 실행하는 TensorFlow.js 라이브러리 -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-
-  <style>
-    /* 화면 전체의 기본 모양을 설정합니다. */
-    :root {
-      --main-color: #2563eb;
-      --main-light: #dbeafe;
-      --text-color: #1f2937;
-      --background: #f8fafc;
-      --card: #ffffff;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      padding: 24px;
-      color: var(--text-color);
-      background: linear-gradient(135deg, #eff6ff, var(--background));
-      font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
-    }
-
-    .container {
-      width: min(720px, 100%);
-      margin: 0 auto;
-    }
-
-    .card {
-      padding: 24px;
-      border-radius: 20px;
-      background: var(--card);
-      box-shadow: 0 10px 30px rgba(37, 99, 235, 0.12);
-    }
-
-    h1 {
-      margin-top: 0;
-      color: #1d4ed8;
-      text-align: center;
-      font-size: clamp(1.6rem, 5vw, 2.2rem);
-    }
-
-    .description {
-      line-height: 1.7;
-      text-align: center;
-    }
-
-    .privacy {
-      padding: 12px 16px;
-      border-radius: 12px;
-      color: #1e40af;
-      background: var(--main-light);
-      line-height: 1.6;
-      font-size: 0.95rem;
-    }
-
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      justify-content: center;
-      margin: 20px 0;
-    }
-
-    button,
-    .upload-label {
-      border: 0;
-      border-radius: 12px;
-      padding: 12px 18px;
-      color: #ffffff;
-      background: var(--main-color);
-      cursor: pointer;
-      font: inherit;
-      font-weight: 700;
-      transition: transform 0.15s, background 0.15s;
-    }
-
-    button:hover,
-    .upload-label:hover {
-      background: #1d4ed8;
-      transform: translateY(-1px);
-    }
-
-    button:disabled {
-      cursor: not-allowed;
-      opacity: 0.55;
-      transform: none;
-    }
-
-    #imageInput {
-      display: none;
-    }
-
-    .preview-area {
-      display: flex;
-      min-height: 280px;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      border: 3px dashed #bfdbfe;
-      border-radius: 16px;
-      background: #f8fbff;
-    }
-
-    #webcam,
-    #previewImage {
-      display: block;
-      width: 100%;
-      max-width: 480px;
-      max-height: 420px;
-      object-fit: contain;
-      border-radius: 12px;
-    }
-
-    #previewImage {
-      display: none;
-    }
-
-    .placeholder {
-      padding: 30px;
-      color: #64748b;
-      text-align: center;
-    }
-
-    #status {
-      min-height: 28px;
-      margin: 18px 0 8px;
-      color: #475569;
-      text-align: center;
-      font-weight: 700;
-    }
-
-    #result {
-      margin-top: 10px;
-      padding: 20px;
-      border-radius: 16px;
-      background: #f1f5f9;
-      text-align: center;
-    }
-
-    #prediction {
-      margin: 0;
-      color: #1d4ed8;
-      font-size: clamp(1.6rem, 7vw, 2.5rem);
-      font-weight: 800;
-    }
-
-    #confidence {
-      margin: 8px 0 0;
-      color: #475569;
-    }
-
-    .tips {
-      margin: 20px 0 0;
-      padding-left: 20px;
-      line-height: 1.8;
-    }
-
-    @media (max-width: 480px) {
-      body {
-        padding: 12px;
-      }
-
-      .card {
-        padding: 16px;
-      }
-
-      button,
-      .upload-label {
-        width: 100%;
-        text-align: center;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <!-- 스마트폰에서도 화면이 잘 보이도록 설정 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 입체 도형 구별하기</title>
+    <style>
+        /* 전체 페이지 디자인 설정 */
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            text-align: center;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 { color: #333; }
+        p { color: #666; }
+        
+        /* 버튼 디자인 */
+        .btn-group { margin: 20px 0; }
+        button {
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #45a049; }
+        button.active { background-color: #2E7D32; border: 2px solid #fff;}
+        
+        /* 화면(웹캠 및 사진)이 보여질 영역 디자인 */
+        #display-area {
+            margin: 20px auto;
+            width: 300px;
+            height: 300px;
+            background-color: #ddd;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        #webcam-container canvas { width: 100%; height: 100%; object-fit: cover; }
+        #uploaded-image { max-width: 100%; max-height: 100%; display: none; }
+        
+        /* 사진 업로드 버튼(숨김 처리하고 디자인된 버튼으로 대체) */
+        #image-upload { display: none; }
+        
+        /* 결과 텍스트 디자인 */
+        #label-container {
+            font-size: 24px;
+            font-weight: bold;
+            color: #d32f2f;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: inline-block;
+            min-width: 250px;
+        }
+    </style>
 </head>
 <body>
-  <main class="container">
-    <section class="card">
-      <h1>🔎 원기둥·원뿔·구 구별하기</h1>
-      <p class="description">
-        카메라로 도형을 보여 주거나 사진을 올리면<br />
-        인공지능이 어떤 입체도형인지 알려 줍니다.
-      </p>
 
-      <!-- 사진과 카메라 데이터는 브라우저 안에서만 처리됩니다. -->
-      <p class="privacy">
-        🔒 <strong>개인정보 보호:</strong> 사진은 인터넷이나 서버로 전송하지 않고,
-        이 웹페이지 안에서만 분석합니다.
-      </p>
+    <h1>🔍 입체 도형 구별 앱</h1>
+    <p>원기둥, 원뿔, 구를 카메라로 비추거나 사진을 올려보세요!</p>
 
-      <!-- 카메라 시작, 카메라 종료, 사진 선택 기능을 제공합니다. -->
-      <div class="controls">
-        <button id="startCameraButton" type="button">📷 카메라 시작</button>
-        <button id="stopCameraButton" type="button" disabled>⏹ 카메라 끄기</button>
-        <label class="upload-label" for="imageInput">🖼️ 사진 올리기</label>
-        <input id="imageInput" type="file" accept="image/*" />
-      </div>
+    <!-- 모드 선택 버튼 -->
+    <div class="btn-group">
+        <button id="btn-webcam" class="active" onclick="startWebcam()">📷 카메라 사용</button>
+        <button id="btn-image" onclick="document.getElementById('image-upload').click()">📁 사진 올리기</button>
+        <!-- 브라우저 내부에서만 처리되므로 사진이 외부 서버로 전송되지 않습니다. -->
+        <input type="file" id="image-upload" accept="image/*" onchange="handleImageUpload(event)">
+    </div>
 
-      <!-- 카메라 영상 또는 사용자가 선택한 사진을 보여 주는 영역입니다. -->
-      <div class="preview-area">
-        <video id="webcam" autoplay playsinline muted></video>
-        <img id="previewImage" alt="분석할 사진 미리보기" />
-        <div id="placeholder" class="placeholder">
-          카메라를 시작하거나 사진을 올려 주세요.
-        </div>
-      </div>
+    <!-- 카메라 화면 또는 업로드된 사진이 표시되는 곳 -->
+    <div id="display-area">
+        <div id="webcam-container"></div>
+        <img id="uploaded-image" alt="업로드된 사진">
+    </div>
 
-      <p id="status" role="status" aria-live="polite">AI 모델을 준비하고 있습니다...</p>
+    <!-- 인공지능 분석 결과가 표시되는 곳 -->
+    <div id="label-container">AI 모델을 불러오는 중...</div>
 
-      <!-- 예측 결과와 확률을 표시합니다. -->
-      <div id="result" aria-live="polite">
-        <p id="prediction">아직 결과가 없어요</p>
-        <p id="confidence">도형을 보여 주세요.</p>
-      </div>
+    <!-- Teachable Machine 라이브러리 불러오기 -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    
+    <script>
+        // 사용자가 제공한 티처블 머신 모델 링크
+        const URL = "https://teachablemachine.withgoogle.com/models/FqPNxW2We/";
 
-      <!-- 초등학교 6학년 학습에 도움이 되는 간단한 설명입니다. -->
-      <ul class="tips">
-        <li><strong>원기둥:</strong> 위와 아래가 같은 원이고 옆면이 둥글게 이어져요.</li>
-        <li><strong>원뿔:</strong> 밑면은 원이고 뾰족한 꼭짓점이 하나 있어요.</li>
-        <li><strong>구:</strong> 공처럼 둥글고 꼭짓점이나 모서리가 없어요.</li>
-      </ul>
-    </section>
-  </main>
+        let model, webcam, maxPredictions;
+        let isWebcamRunning = false;
 
-  <script>
-    // 티처블머신 모델의 공유 주소입니다.
-    // model.json과 metadata.json은 브라우저에서 직접 읽어 사용합니다.
-    const MODEL_URL = "https://teachablemachine.withgoogle.com/models/FqPNxW2We/";
+        // 1. 모델 불러오기 (페이지가 열리면 가장 먼저 실행됨)
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
 
-    // 웹페이지에서 사용할 요소들을 가져옵니다.
-    const webcam = document.getElementById("webcam");
-    const previewImage = document.getElementById("previewImage");
-    const placeholder = document.getElementById("placeholder");
-    const statusText = document.getElementById("status");
-    const predictionText = document.getElementById("prediction");
-    const confidenceText = document.getElementById("confidence");
-    const imageInput = document.getElementById("imageInput");
-    const startCameraButton = document.getElementById("startCameraButton");
-    const stopCameraButton = document.getElementById("stopCameraButton");
+            // 인공지능 모델 로드
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+            
+            // 모델 로드가 끝나면 바로 카메라 시작
+            startWebcam();
+        }
 
-    let model = null;
-    let webcamStream = null;
-    let isCameraRunning = false;
-    let animationFrameId = null;
+        // 2. 카메라 시작하기
+        async function startWebcam() {
+            document.getElementById('btn-webcam').classList.add('active');
+            document.getElementById('btn-image').classList.remove('active');
+            
+            // 기존에 업로드된 사진 숨기기
+            document.getElementById('uploaded-image').style.display = "none";
+            document.getElementById('webcam-container').style.display = "block";
+            document.getElementById("label-container").innerHTML = "카메라를 켜는 중...";
 
-    // 모델을 한 번만 불러옵니다.
-    async function loadModel() {
-      if (model) return model;
+            // 카메라 설정 (너비, 높이, 좌우반전 여부)
+            // 좌우 반전(거울 모드) 방지를 위해 세 번째 값을 false로 설정!
+            const flip = false; 
+            webcam = new tmImage.Webcam(300, 300, flip);
+            
+            try {
+                // 스마트폰에서 후면 카메라를 우선적으로 사용하도록 시도
+                await webcam.setup({ facingMode: "environment" }); 
+                await webcam.play();
+                isWebcamRunning = true;
+                
+                // 화면에 카메라 영상 붙이기
+                document.getElementById("webcam-container").innerHTML = "";
+                document.getElementById("webcam-container").appendChild(webcam.canvas);
+                
+                // 실시간 예측 반복 실행
+                window.requestAnimationFrame(loop);
+            } catch(e) {
+                document.getElementById("label-container").innerHTML = "카메라 권한을 허용해주세요.";
+            }
+        }
 
-      statusText.textContent = "AI 모델을 불러오는 중...";
-      model = await tmImage.load(
-        `${MODEL_URL}model.json`,
-        `${MODEL_URL}metadata.json`
-      );
-      statusText.textContent = "준비 완료! 카메라를 시작하거나 사진을 올려 주세요.";
-      return model;
-    }
+        // 3. 실시간 카메라 영상 업데이트 루프
+        async function loop() {
+            if (isWebcamRunning) {
+                webcam.update(); // 웹캠 프레임 업데이트
+                await predict(webcam.canvas); // 캔버스 이미지를 AI로 분석
+                window.requestAnimationFrame(loop); // 계속 반복
+            }
+        }
 
-    // 화면에 표시할 미리보기 대상을 정리합니다.
-    function showPreview(type) {
-      if (type === "camera") {
-        webcam.style.display = "block";
-        previewImage.style.display = "none";
-        placeholder.style.display = "none";
-      } else if (type === "image") {
-        webcam.style.display = "none";
-        previewImage.style.display = "block";
-        placeholder.style.display = "none";
-      } else {
-        webcam.style.display = "none";
-        previewImage.style.display = "none";
-        placeholder.style.display = "block";
-      }
-    }
+        // 4. 사진 파일 업로드 처리 (서버 전송 없이 브라우저 내부에서만 처리)
+        async function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
 
-    // 가장 확률이 높은 결과를 골라 화면에 표시합니다.
-    // 확률이 0.7보다 작으면 확신하기 어려운 것으로 처리합니다.
-    function displayPrediction(predictions) {
-      if (!predictions || predictions.length === 0) return;
+            // 카메라가 켜져있다면 중지하기
+            if (isWebcamRunning) {
+                webcam.stop();
+                isWebcamRunning = false;
+            }
 
-      const bestPrediction = predictions.reduce((best, current) =>
-        current.probability > best.probability ? current : best
-      );
-      const probability = bestPrediction.probability;
-      const percentage = (probability * 100).toFixed(1);
+            // 버튼 색상 변경
+            document.getElementById('btn-webcam').classList.remove('active');
+            document.getElementById('btn-image').classList.add('active');
 
-      if (probability < 0.7) {
-        predictionText.textContent = "잘 모르겠어요 🤔";
-        confidenceText.textContent = `가장 높은 확률: ${percentage}%`;
-      } else {
-        predictionText.textContent = bestPrediction.className;
-        confidenceText.textContent = `확률: ${percentage}%`;
-      }
-    }
+            // 화면 전환 (카메라 숨기고 사진 보이기)
+            document.getElementById('webcam-container').style.display = "none";
+            const imgElement = document.getElementById('uploaded-image');
+            imgElement.style.display = "block";
+            document.getElementById("label-container").innerHTML = "분석 중...";
 
-    // 카메라 영상이나 사진을 티처블머신 모델로 분석합니다.
-    async function predict(target) {
-      try {
-        await loadModel();
-        const predictions = await model.predict(target, false);
-        displayPrediction(predictions);
-      } catch (error) {
-        console.error("이미지 분석 오류:", error);
-        statusText.textContent = "이미지를 분석하지 못했어요. 다시 시도해 주세요.";
-      }
-    }
+            // 파일을 읽어서 화면에 띄우기 (FileReader 객체 사용 = 외부로 전송 안 됨)
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imgElement.src = e.target.result;
+                // 이미지가 화면에 완전히 로드된 후 AI 분석 시작
+                imgElement.onload = function() {
+                    predict(imgElement);
+                }
+            };
+            reader.readAsDataURL(file);
+        }
 
-    // 카메라 영상을 계속 분석해 결과를 갱신합니다.
-    async function predictCameraFrame() {
-      if (!isCameraRunning) return;
+        // 5. 인공지능 분석 및 결과 출력 함수
+        async function predict(imageElement) {
+            // 모델에 이미지(웹캠 또는 업로드된 사진)를 넣고 예측 결과 받아오기
+            const prediction = await model.predict(imageElement);
+            
+            let maxProb = 0;
+            let bestClassName = "";
 
-      await predict(webcam);
-      animationFrameId = requestAnimationFrame(predictCameraFrame);
-    }
+            // 가장 확률이 높은 도형 찾기
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].probability > maxProb) {
+                    maxProb = prediction[i].probability;
+                    bestClassName = prediction[i].className;
+                }
+            }
 
-    // 사용자의 카메라 권한을 받아 카메라를 시작합니다.
-    async function startCamera() {
-      try {
-        await loadModel();
+            // 결과 화면에 띄우기 (확률이 0.7 미만이면 '잘 모르겠어요' 출력)
+            if (maxProb < 0.7) {
+                document.getElementById("label-container").innerHTML = "잘 모르겠어요 😕";
+            } else {
+                // 확률을 100분율로 변환 (예: 0.95 -> 95%)
+                const percent = Math.round(maxProb * 100);
+                document.getElementById("label-container").innerHTML = bestClassName + " (" + percent + "%)";
+            }
+        }
 
-        if (webcamStream) stopCamera();
-
-        webcamStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-          audio: false
-        });
-
-        webcam.srcObject = webcamStream;
-        isCameraRunning = true;
-        startCameraButton.disabled = true;
-        stopCameraButton.disabled = false;
-        statusText.textContent = "카메라를 보고 있어요. 도형을 화면에 보여 주세요.";
-        showPreview("camera");
-        predictCameraFrame();
-      } catch (error) {
-        console.error("카메라 시작 오류:", error);
-        statusText.textContent =
-          "카메라를 사용할 수 없어요. 권한을 허용하거나 사진을 올려 주세요.";
-      }
-    }
-
-    // 카메라의 모든 영상 장치를 정리합니다.
-    function stopCamera() {
-      isCameraRunning = false;
-      cancelAnimationFrame(animationFrameId);
-      animationFrameId = null;
-
-      if (webcamStream) {
-        webcamStream.getTracks().forEach((track) => track.stop());
-        webcamStream = null;
-      }
-
-      webcam.srcObject = null;
-      startCameraButton.disabled = false;
-      stopCameraButton.disabled = true;
-      statusText.textContent = "카메라를 껐어요. 사진을 올리거나 카메라를 다시 시작해 주세요.";
-
-      if (!previewImage.src) showPreview("none");
-    }
-
-    // 사용자가 고른 사진을 브라우저에서만 읽고 바로 분석합니다.
-    imageInput.addEventListener("change", (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      // 사진을 분석할 때 카메라가 켜져 있으면 먼저 종료합니다.
-      if (isCameraRunning) stopCamera();
-
-      const localImageUrl = URL.createObjectURL(file);
-      previewImage.onload = async () => {
-        showPreview("image");
-        statusText.textContent = "사진을 분석하는 중...";
-        await predict(previewImage);
-        URL.revokeObjectURL(localImageUrl);
-      };
-      previewImage.src = localImageUrl;
-    });
-
-    // 버튼에 기능을 연결합니다.
-    startCameraButton.addEventListener("click", startCamera);
-    stopCameraButton.addEventListener("click", stopCamera);
-
-    // 페이지가 닫힐 때 카메라가 계속 켜져 있지 않도록 정리합니다.
-    window.addEventListener("beforeunload", stopCamera);
-
-    // 페이지를 열면 모델을 미리 준비합니다.
-    loadModel().catch((error) => {
-      console.error("모델 로딩 오류:", error);
-      statusText.textContent =
-        "AI 모델을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 새로고침해 주세요.";
-    });
-  </script>
+        // 페이지가 열리면 init 함수 실행
+        init();
+    </script>
 </body>
 </html>
