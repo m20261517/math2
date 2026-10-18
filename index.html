@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>입체도형 분류기</title>
+  <style>
+    :root {
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      color: #1f2937;
+      background: #f8fafc;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #f8fafc;
+    }
+
+    .app {
+      max-width: 980px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    h1 { margin: 0 0 8px; font-size: 1.8rem; }
+
+    .notice {
+      margin: 0 0 16px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #ecfeff;
+      border: 1px solid #67e8f9;
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .panel {
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 12px;
+      background: #fff;
+    }
+
+    video, canvas, img {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid #d1d5db;
+      background: #111827;
+      object-fit: cover;
+      min-height: 180px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    button, .file-button {
+      border: none;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 52px;
+    }
+
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .primary { background: #2563eb; color: #fff; }
+    .danger { background: #ef4444; color: #fff; }
+    .neutral { background: #e5e7eb; color: #111827; }
+
+    .file-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #10b981;
+      color: white;
+    }
+
+    input[type="file"] { display: none; }
+
+    .status, .result {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 10px;
+      background: #f3f4f6;
+      line-height: 1.45;
+      font-size: 1rem;
+    }
+
+    .result { background: #eff6ff; border: 1px solid #bfdbfe; }
+
+    .prob-list {
+      margin: 10px 0 0;
+      padding-left: 20px;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 10px; }
+      .app { padding: 12px; }
+      h1 { font-size: 1.5rem; }
+      button, .file-button { width: 100%; }
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+</head>
+<body>
+  <main class="app">
+    <h1>원기둥 · 원뿔 · 구 분류기</h1>
+    <p class="notice" role="note" aria-label="개인정보 안내">
+      🔒 사진과 카메라 화면은 이 기기 브라우저 안에서만 처리돼요. 외부 서버나 API로 전송하지 않아요.
+    </p>
+
+    <section class="grid">
+      <article class="panel" aria-label="카메라 영역">
+        <h2>카메라</h2>
+        <video id="cameraView" playsinline autoplay muted aria-label="실시간 카메라 화면"></video>
+        <canvas id="captureCanvas" aria-label="캡처된 사진" hidden></canvas>
+        <div class="controls" role="group" aria-label="카메라 조작 버튼">
+          <button id="startCameraBtn" class="primary" type="button">카메라 시작</button>
+          <button id="captureBtn" class="neutral" type="button" disabled>사진 찍기</button>
+          <button id="stopCameraBtn" class="danger" type="button" disabled>카메라 중지</button>
+        </div>
+      </article>
+
+      <article class="panel" aria-label="사진 업로드 영역">
+        <h2>사진 업로드</h2>
+        <img id="uploadPreview" alt="업로드한 사진 미리보기" hidden />
+        <div class="controls" role="group" aria-label="사진 업로드 버튼">
+          <label for="imageInput" class="file-button">사진 고르기</label>
+          <input id="imageInput" type="file" accept="image/*" capture="environment" aria-label="분류할 사진 파일 선택" />
+        </div>
+      </article>
+    </section>
+
+    <section id="status" class="status" role="status" aria-live="polite">모델을 불러오는 중이에요...</section>
+    <section id="result" class="result" role="status" aria-live="polite">아직 분류 결과가 없어요.</section>
+  </main>
+
+  <script>
+    // ===== 전역 상태: 모델/라벨/카메라 스트림을 안전하게 관리해요 =====
+    let model = null;
+    let labels = [];
+    let cameraStream = null;
+
+    const THRESHOLD = 0.7;
+
+    const statusEl = document.getElementById('status');
+    const resultEl = document.getElementById('result');
+    const cameraView = document.getElementById('cameraView');
+    const captureCanvas = document.getElementById('captureCanvas');
+    const uploadPreview = document.getElementById('uploadPreview');
+    const imageInput = document.getElementById('imageInput');
+
+    const startCameraBtn = document.getElementById('startCameraBtn');
+    const captureBtn = document.getElementById('captureBtn');
+    const stopCameraBtn = document.getElementById('stopCameraBtn');
+
+    // ===== 화면 상태를 쉽게 바꾸기 위한 작은 도우미 함수 =====
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function setResultHtml(html) {
+      resultEl.innerHTML = html;
+    }
+
+    // ===== metadata.json을 읽어서 라벨 순서를 그대로 사용해요 =====
+    async function loadLabelsFromMetadata() {
+      const response = await fetch('./metadata.json', { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('metadata.json 파일을 읽지 못했어요.');
+      }
+      const metadata = await response.json();
+      if (!Array.isArray(metadata.labels) || metadata.labels.length === 0) {
+        throw new Error('metadata.json 안에 labels 정보가 없어요.');
+      }
+      labels = metadata.labels;
+    }
+
+    // ===== Teachable Machine 모델을 로드해요 (model.json 기준) =====
+    async function initModel() {
+      setStatus('모델 파일을 불러오는 중이에요...');
+      await loadLabelsFromMetadata();
+
+      model = await tmImage.load('./model.json', './metadata.json');
+      setStatus('모델 준비 완료! 카메라를 시작하거나 사진을 올려 보세요.');
+    }
+
+    // ===== 예측 결과를 임계값 규칙(0.7)으로 화면에 보여줘요 =====
+    function renderPrediction(predictions) {
+      const sorted = [...predictions].sort((a, b) => b.probability - a.probability);
+      const top = sorted[0];
+
+      const topProbability = Number(top.probability.toFixed(4));
+      const topLabel = topProbability >= THRESHOLD ? top.className : '잘 모르겠어요';
+
+      const details = sorted
+        .map((item) => `<li>${item.className}: ${(item.probability * 100).toFixed(1)}%</li>`)
+        .join('');
+
+      setResultHtml(
+        `<strong>결과:</strong> ${topLabel}<br />` +
+        `<strong>최대 확률:</strong> ${(topProbability * 100).toFixed(1)}%` +
+        `<ul class="prob-list" aria-label="클래스별 확률 목록">${details}</ul>`
+      );
+    }
+
+    // ===== 이미지 요소를 받아 모델 예측을 수행해요 =====
+    async function predictFromElement(imageElement) {
+      if (!model) {
+        setStatus('아직 모델 준비가 끝나지 않았어요. 잠시만 기다려 주세요.');
+        return;
+      }
+
+      try {
+        setStatus('분류 중이에요...');
+        const predictions = await model.predict(imageElement);
+
+        // metadata의 라벨 순서를 우선 사용해 className을 재정렬해요.
+        const normalized = labels.map((label, idx) => {
+          const hit = predictions.find((p) => p.className === label);
+          return {
+            className: label,
+            probability: hit ? hit.probability : (predictions[idx]?.probability ?? 0)
+          };
+        });
+
+        renderPrediction(normalized);
+        setStatus('분류가 끝났어요! 다른 사진도 해 볼까요?');
+      } catch (error) {
+        setStatus('분류 중 오류가 발생했어요. 다른 사진으로 다시 시도해 주세요.');
+        setResultHtml(`오류: ${error.message}`);
+      }
+    }
+
+    // ===== 카메라 시작/중지를 안전하게 처리해요 =====
+    async function startCamera() {
+      if (cameraStream) {
+        setStatus('카메라가 이미 켜져 있어요.');
+        return;
+      }
+
+      try {
+        setStatus('카메라 권한을 요청하고 있어요...');
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false
+        });
+
+        cameraView.srcObject = cameraStream;
+        await cameraView.play();
+        captureBtn.disabled = false;
+        stopCameraBtn.disabled = false;
+        setStatus('카메라 시작! 사진 찍기 버튼을 눌러 보세요.');
+      } catch (error) {
+        cameraStream = null;
+        setStatus('카메라를 사용할 수 없어요. 권한을 확인하거나 사진 업로드를 이용해 주세요.');
+        setResultHtml(`카메라 오류: ${error.message}`);
+      }
+    }
+
+    function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+        cameraStream = null;
+      }
+      cameraView.srcObject = null;
+      captureBtn.disabled = true;
+      stopCameraBtn.disabled = true;
+      setStatus('카메라를 중지했어요.');
+    }
+
+    // ===== 카메라 화면을 캡처해서 바로 분류해요 =====
+    async function captureFromCamera() {
+      if (!cameraStream) {
+        setStatus('먼저 카메라를 시작해 주세요.');
+        return;
+      }
+
+      const width = cameraView.videoWidth;
+      const height = cameraView.videoHeight;
+      if (!width || !height) {
+        setStatus('카메라 화면이 아직 준비되지 않았어요. 잠시 후 다시 눌러 주세요.');
+        return;
+      }
+
+      captureCanvas.width = width;
+      captureCanvas.height = height;
+      const ctx = captureCanvas.getContext('2d');
+      ctx.drawImage(cameraView, 0, 0, width, height);
+
+      uploadPreview.hidden = true;
+      captureCanvas.hidden = false;
+      await predictFromElement(captureCanvas);
+    }
+
+    // ===== 업로드한 이미지를 미리보기로 보여주고 분류해요 =====
+    async function handleImageUpload(event) {
+      const file = event.target.files?.[0];
+      if (!file) {
+        setStatus('사진을 고르지 않았어요.');
+        return;
+      }
+
+      if (!file.type.startsWith('image/')) {
+        setStatus('이미지 파일만 사용할 수 있어요.');
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      uploadPreview.src = objectUrl;
+      uploadPreview.hidden = false;
+      captureCanvas.hidden = true;
+
+      await new Promise((resolve, reject) => {
+        uploadPreview.onload = resolve;
+        uploadPreview.onerror = () => reject(new Error('이미지를 읽지 못했어요.'));
+      });
+
+      try {
+        await predictFromElement(uploadPreview);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
+
+    // ===== 이벤트 연결 =====
+    startCameraBtn.addEventListener('click', startCamera);
+    stopCameraBtn.addEventListener('click', stopCamera);
+    captureBtn.addEventListener('click', captureFromCamera);
+    imageInput.addEventListener('change', handleImageUpload);
+
+    // ===== 페이지를 떠날 때 카메라 리소스를 정리해요 =====
+    window.addEventListener('beforeunload', stopCamera);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopCamera();
+      }
+    });
+
+    // ===== 앱 시작 =====
+    initModel().catch((error) => {
+      setStatus('모델을 불러오지 못했어요. 파일 이름과 위치를 확인해 주세요.');
+      setResultHtml(`오류: ${error.message}`);
+    });
+  </script>
+</body>
+</html>
